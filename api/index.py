@@ -1,7 +1,7 @@
 import os
 import shutil
 import tempfile
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, BackgroundTasks
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pdf2docx import Converter
@@ -25,24 +25,12 @@ def cleanup_temp_dir(path: str):
 def home():
     return {"status": "online", "engine": "ToolifyHub Python Backend Live"}
 
-@app.options("/{path:path}")
-async def preflight_handler(path: str):
-    return JSONResponse(
-        content={"message": "ok"},
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-        }
-    )
-
 @app.post("/convert/pdf-to-docx")
 def convert_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
         return JSONResponse(
             status_code=400,
-            content={"error": "Only PDF allowed"},
-            headers={"Access-Control-Allow-Origin": "*"}
+            content={"error": "Only PDF allowed"}
         )
 
     temp_dir = tempfile.mkdtemp()
@@ -53,25 +41,18 @@ def convert_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(...))
         with open(input_pdf, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
+        # High Speed Converter Settings
         cv = Converter(input_pdf)
         
-        # High-speed conversion without CPU hang
-        cv.convert(
-            output_docx,
-            start=0,
-            end=None,
-            multi_processing=False,
-            cpu_count=1
-        )
+        # Speed optimizations:
+        # 1. multi_processing=False prevents container crashes
+        # 2. cpu_count=1 focuses single thread without locks
+        cv.convert(output_docx, start=0, end=None, multi_processing=False, cpu_count=1)
         cv.close()
 
         if not os.path.exists(output_docx):
             cleanup_temp_dir(temp_dir)
-            return JSONResponse(
-                status_code=500,
-                content={"error": "Failed to create DOCX output"},
-                headers={"Access-Control-Allow-Origin": "*"}
-            )
+            return JSONResponse(status_code=500, content={"error": "Conversion output missing"})
 
         background_tasks.add_task(cleanup_temp_dir, temp_dir)
         clean_name = os.path.splitext(file.filename)[0]
@@ -88,8 +69,4 @@ def convert_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(...))
 
     except Exception as e:
         cleanup_temp_dir(temp_dir)
-        return JSONResponse(
-            status_code=500,
-            content={"error": str(e)},
-            headers={"Access-Control-Allow-Origin": "*"}
-        )
+        return JSONResponse(status_code=500, content={"error": str(e)})
