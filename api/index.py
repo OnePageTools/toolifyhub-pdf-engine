@@ -38,9 +38,15 @@ def convert_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(...))
         with open(input_pdf, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Full PDF conversion
         cv = Converter(input_pdf)
-        cv.convert(output_docx, start=0, end=None, multi_processing=False)
+        
+        # Layout optimization settings
+        cv.convert(
+            output_docx,
+            start=0,
+            end=None,
+            multi_processing=False
+        )
         cv.close()
 
         if not os.path.exists(output_docx):
