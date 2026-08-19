@@ -1,11 +1,10 @@
 import os
 import shutil
 import tempfile
-import fitz  # PyMuPDF
 from fastapi import FastAPI, UploadFile, File, BackgroundTasks
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pdf2docx import Converter
+from pdf2docx import parse
 
 app = FastAPI()
 
@@ -39,23 +38,15 @@ def convert_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(...))
         with open(input_pdf, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Total pages count check
-        doc = fitz.open(input_pdf)
-        total_pages = len(doc)
-        doc.close()
-
-        # High-Fidelity Layout Converter
-        cv = Converter(input_pdf)
-        
-        # Single-process sequential stream (Stable for cloud containers)
-        cv.convert(
-            output_docx,
+        # High-Speed Direct Parse
+        parse(
+            pdf_file=input_pdf,
+            docx_file=output_docx,
             start=0,
-            end=total_pages,
+            end=None,
             multi_processing=False,
             cpu_count=1
         )
-        cv.close()
 
         if not os.path.exists(output_docx):
             cleanup_temp_dir(temp_dir)
